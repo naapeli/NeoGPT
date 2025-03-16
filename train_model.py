@@ -23,7 +23,7 @@ model = GPT2(Config())
 model.to(device)
 # model = torch.compile(model)
 
-max_lr = 3e-4
+max_lr = 6e-4
 min_lr = 0.1 * max_lr
 warmup_steps = 10
 max_steps = 50
