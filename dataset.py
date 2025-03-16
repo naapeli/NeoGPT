@@ -14,44 +14,46 @@ def get_shakespeare(B, T, device=torch.device("cpu")):
     return x, y
 
 
-# class ShakespeareLoader:
-#     def __init__(self, B, T):
-#         self.B = B
-#         self.T = T
+class ShakespeareLoader:
+    def __init__(self, B, T, process_rank, world_size):
+        self.B = B
+        self.T = T
+        self.process_rank = process_rank
+        self.world_size = world_size
 
-#         with open("shakespeare.txt") as f:
-#             text = f.read()
+        with open("shakespeare.txt") as f:
+            text = f.read()
 
-#         tokenizer = tiktoken.get_encoding("gpt2")
-#         tokens = tokenizer.encode(text[:1000])
-#         self.tokens = torch.tensor(tokens[:B * T + 1])
+        tokenizer = tiktoken.get_encoding("gpt2")
+        tokens = tokenizer.encode(text[:1000])
+        self.tokens = torch.tensor(tokens[:B * T + 1])
 
-#         self.current_position = 0
+        self.current_position = self.B * self.T * self.process_rank
 
-#     def next_batch(self):
-#         tokens = self.tokens[self.current_position:self.current_position + self.B * self.T + 1]
-#         x = tokens[:-1].view(self.B, self.T)
-#         y = tokens[1:].view(self.B, self.T)
-#         self.current_position += self.B * self.T
+    def next_batch(self):
+        tokens = self.tokens[self.current_position:self.current_position + self.B * self.T + 1]
+        x = tokens[:-1].view(self.B, self.T)
+        y = tokens[1:].view(self.B, self.T)
+        self.current_position += self.B * self.T * self.world_size
 
-#         if self.current_position + self.B * self.T > len(self.tokens):
-#             self.current_position = 0
-#         return x, y
+        if self.current_position + self.B * self.T * self.world_size + 1 > len(self.tokens):
+            self.current_position = self.B * self.T * self.process_rank
+        return x, y
 
-def ShakespeareLoader(B, T):
-    with open("shakespeare.txt") as f:
-        text = f.read()
-    tokenizer = tiktoken.get_encoding("gpt2")
-    tokens = tokenizer.encode(text)
-    tokens = torch.tensor(tokens)
-    current_position = 0
+# def ShakespeareLoader(B, T):
+#     with open("shakespeare.txt") as f:
+#         text = f.read()
+#     tokenizer = tiktoken.get_encoding("gpt2")
+#     tokens = tokenizer.encode(text)
+#     tokens = torch.tensor(tokens)
+#     current_position = 0
 
-    while True:
-        batch_tokens = tokens[current_position:current_position + B * T + 1]
-        x = batch_tokens[:-1].view(B, T)
-        y = batch_tokens[1:].view(B, T)
-        current_position += B * T
+#     while True:
+#         batch_tokens = tokens[current_position:current_position + B * T + 1]
+#         x = batch_tokens[:-1].view(B, T)
+#         y = batch_tokens[1:].view(B, T)
+#         current_position += B * T
 
-        if current_position + B * T > len(tokens):
-            current_position = 0
-        yield x, y
+#         if current_position + B * T > len(tokens):
+#             current_position = 0
+#         yield x, y
