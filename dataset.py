@@ -7,6 +7,19 @@ from tqdm import tqdm
 import os
 
 
+def tokenize(doc):
+    enc = tiktoken.get_encoding("gpt2")
+    eot = enc._special_tokens["<|endoftext|>"]
+    tokens = [eot]
+    tokens.extend(enc.encode_ordinary(doc["text"]))
+    tokens_np = np.array(tokens)
+    assert (0 <= tokens_np).all() and (tokens_np < 2**16).all(), "token dictionary too large for uint16"
+    tokens_np_uint16 = tokens_np.astype(np.uint16)
+    return tokens_np_uint16
+
+def write_datafile(filename, tokens_np):
+    np.save(filename, tokens_np)
+
 def save_fineweb():
     local_dir = "edu_fineweb10B"
     remote_name = "sample-10BT"
@@ -17,19 +30,6 @@ def save_fineweb():
 
     fw = load_dataset("HuggingFaceFW/fineweb-edu", name=remote_name, split="train")
 
-    enc = tiktoken.get_encoding("gpt2")
-    eot = enc._special_tokens["<|endoftext|>"]
-    def tokenize(doc):
-        tokens = [eot]
-        tokens.extend(enc.encode_ordinary(doc["text"]))
-        tokens_np = np.array(tokens)
-        assert (0 <= tokens_np).all() and (tokens_np < 2**16).all(), "token dictionary too large for uint16"
-        tokens_np_uint16 = tokens_np.astype(np.uint16)
-        return tokens_np_uint16
-
-    def write_datafile(filename, tokens_np):
-        np.save(filename, tokens_np)
-
     nprocs = max(1, os.cpu_count() - 1)
     with mp.Pool(nprocs) as pool:
         shard_index = 0
@@ -37,7 +37,6 @@ def save_fineweb():
         token_count = 0
         progress_bar = None
         for tokens in pool.imap(tokenize, fw, chunksize=16):
-
             if token_count + len(tokens) < shard_size:
                 all_tokens_np[token_count:token_count+len(tokens)] = tokens
                 token_count += len(tokens)
@@ -54,8 +53,7 @@ def save_fineweb():
                 shard_index += 1
                 progress_bar = None
                 all_tokens_np[0:len(tokens)-remainder] = tokens[remainder:]
-                token_count = len(tokens)-remainder
-                break
+                token_count = len(tokens) - remainder
 
         if token_count != 0:
             split = "val" if shard_index == 0 else "train"
@@ -77,12 +75,27 @@ class FineWebLoader:
         shards = [os.path.join(data_root, s) for s in shards]
         self.shards = shards
         assert len(shards) > 0, f"no shards found for split {split}"
+        self.rng = np.random.default_rng(0)
+        self.split = split
         self.reset()
 
     def reset(self):
         self.current_shard = 0
-        self.tokens = self.load_tokens(self.shards[self.current_shard])
+        if self.split == "train":
+            self.rng.shuffle(self.shards)
+        self.tokens = self.load_shard(self.shards[self.current_shard])
         self.current_position = self.B * self.T * self.process_rank
+
+    def load_shard(self, filename):
+        shard = self.load_tokens(filename)
+        if self.split == "train":
+            enc = tiktoken.get_encoding("gpt2")
+            eot = enc._special_tokens["<|endoftext|>"]
+            eot_positions = (torch.where(shard == eot)[0] + 1).tolist()
+            documents = [shard[start:end] for start, end in zip([0] + eot_positions[:-1], eot_positions)]
+            self.rng.shuffle(documents)
+            shard = torch.cat(documents)
+        return shard
     
     def load_tokens(self, filename):
         tokens = np.load(filename)
@@ -96,9 +109,12 @@ class FineWebLoader:
         y = tokens[1:].view(self.B, self.T)
         self.current_position += self.B * self.T * self.world_size
         if self.current_position + self.B * self.T * self.world_size + 1 > len(self.tokens):
-            self.current_shard = (self.current_shard + 1) % len(self.shards)
-            self.tokens = self.load_tokens(self.shards[self.current_shard])
-            self.current_position = self.B * self.T * self.process_rank
+            self.current_shard += 1
+            if self.current_shard == len(self.shards):
+                self.reset()
+            else:
+                self.tokens = self.load_shard(self.shards[self.current_shard])
+                self.current_position = self.B * self.T * self.process_rank
         return x, y
 
 

@@ -18,7 +18,7 @@ ddp = int(os.environ.get("RANK", -1)) != -1
 if ddp:
     # torchrun --standalone --nproc_per_node=1 train_model.py
     assert torch.cuda.is_available()
-    init_process_group(backend="nccl")  # backend="nccl"  # gloo for amd gpu or cpu and nccl for nvidia gpu
+    init_process_group(backend="nccl")  # gloo for amd gpu or cpu and nccl for nvidia gpu
     ddp_rank = int(os.environ["RANK"])
     ddp_local_rank = int(os.environ["LOCAL_RANK"])
     ddp_world_size = int(os.environ["WORLD_SIZE"])
@@ -36,9 +36,9 @@ device_type = "cuda" if device.startswith("cuda") else "cpu"
 device = torch.device(device)
 
 # ============ DATALOADER ============
-total_batch_size = 256  # 524288
-B = 4  # 64
-T = 32  # 2048
+total_batch_size = 524288  # 256
+B = 64  # 16
+T = 1024  # 32
 assert total_batch_size % (B * T * ddp_world_size) == 0
 grad_accum_steps = total_batch_size // (B * T * ddp_world_size)
 if master_process: print(f"Accumulation steps in training: {grad_accum_steps}")
@@ -53,29 +53,45 @@ if torch.cuda.is_available():
     torch.cuda.manual_seed(0)
 torch.set_float32_matmul_precision("high")
 
-# ============ MODEL ============
-model = GPT2(Config())
-model.to(device)
-# model = torch.compile(model)
-if ddp: model = DistributedDataParallel(model, device_ids=[ddp_local_rank])
-
-# ============ OPTIMIZER ============
-max_lr = 6e-4
-min_lr = 0.1 * max_lr
-warmup_steps = 10  # 200
-max_steps = 50  # 19073
-lr_scheduler = CosineAnnealingWithWarmup(min_lr, max_lr, warmup_steps, max_steps)
-optimizer = configure_optimizer(model.named_parameters(), weight_decay=0.1, learning_rate=6e-4)
-
 # ============ LOGGING ============
 log_dir = "log"
 os.makedirs(log_dir, exist_ok=True)
 log_file = os.path.join(log_dir, f"log.txt")
-with open(log_file, "w") as f:
-    pass
 if master_process:
     writer = SummaryWriter(log_dir="runs/training")
 
+# ============ MODEL ============
+resume_training = True
+if resume_training:
+    checkpoint_files = [f for f in os.listdir(log_dir) if f.startswith("model_") and f.endswith(".pt")]
+    assert len(checkpoint_files) > 0, "no checkpoints found to resume training from"
+    checkpoint_files = sorted(checkpoint_files)
+    checkpoint_file = checkpoint_files[-1]
+    checkpoint_path = os.path.join(log_dir, checkpoint_file)
+    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
+    # load the model state
+    model = GPT2(checkpoint['config'])
+    model.to(device)
+    model.load_state_dict(checkpoint['model'])
+    current_step = checkpoint['step'] + 1
+    if master_process:
+        print(f"resuming training from step {current_step}")
+else:
+    model = GPT2(Config())
+    model.to(device)
+    current_step = 1
+if ddp: model = DistributedDataParallel(model, device_ids=[ddp_local_rank])
+
+# ============ OPTIMIZER ============
+max_lr = 7e-4
+min_lr = 0.1 * max_lr
+warmup_steps = 100
+epochs = 4
+max_steps = 19073 * epochs
+lr_scheduler = CosineAnnealingWithWarmup(min_lr, max_lr, warmup_steps, max_steps)
+optimizer = configure_optimizer(model.named_parameters(), weight_decay=0.1, learning_rate=6e-4)
+
+# ============ VALIDATION ============
 def model_validation(step):
     validationloader.reset()
     with torch.no_grad():
@@ -116,9 +132,8 @@ def evaluate_hella_swag(step):
         tokens = tokens.to(device)
         mask = mask.to(device)
         with torch.no_grad():
-            # with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
-            #     logits, _ = model(tokens)
-            logits, _ = model(tokens)
+            with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
+                logits, _ = model(tokens)
             pred_norm, _, _ = get_most_likely_row(tokens, mask, logits)
         num_total += 1
         num_correct_norm += int(pred_norm == label)
@@ -148,9 +163,8 @@ def generate_text():
     sample_rng.manual_seed(42 + ddp_rank)
     while xgen.size(1) < max_length:
         with torch.no_grad():
-            # with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
-            #     logits, _ = model(xgen)
-            logits, _ = model(xgen)
+            with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
+                logits, _ = model(xgen)
             logits = logits[:, -1, :]
             probs = F.softmax(logits, dim=-1)
             topk_probs, topk_indices = torch.topk(probs, 50, dim=-1)
@@ -163,11 +177,11 @@ def generate_text():
         print(f"rank {ddp_rank} sample {i}: {decoded}")
 
 # ============ TRAINING LOOP ============
-for step in range(1, max_steps + 1):
+for step in range(current_step, max_steps + 1):
     t0 = perf_counter()
 
     # validation
-    if step % 250 or step == max_steps:
+    if step % 250 == 0 or step == max_steps + 1:
         model.eval()
         model_validation(step)
         evaluate_hella_swag(step)
@@ -182,9 +196,8 @@ for step in range(1, max_steps + 1):
         x, y = x.to(device), y.to(device)
         if ddp: model.require_backward_grad_sync = sub_step == grad_accum_steps - 1  # only sync the gradients on the last iteration of the accumulation loop
         optimizer.zero_grad()
-        # with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
-        #     logits, loss = model(x, targets=y)
-        logits, loss = model(x, targets=y)
+        with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
+            logits, loss = model(x, targets=y)
         loss = loss / grad_accum_steps
         total_loss += loss.detach()
         loss.backward()
