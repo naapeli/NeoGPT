@@ -25,14 +25,25 @@ class SelfAttention(nn.Module):
         self.n_head = config.n_head
         self.n_embed = config.n_embed
         
-    def forward(self, x):
+    def forward(self, x, attn_mask=None):
         B, T, C = x.shape
         q, k, v = self.c_attn(x).split(self.n_embed, dim=2)
         q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
         k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
         v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
 
-        y = F.scaled_dot_product_attention(q, k, v, is_causal=True)
+        causal_mask = torch.full((T, T), float('-inf'), device=x.device)
+        causal_mask = torch.triu(causal_mask, diagonal=1)
+
+        if attn_mask is not None:
+            mask = torch.full((B, self.n_head, T, T), float('-inf'), device=x.device)
+            mask = mask.masked_fill(attn_mask[:, None, None, :] == 1, 0.0)
+            mask = mask + causal_mask[None, None, :, :]
+        else:
+            mask = causal_mask[None, None, :, :]
+
+        # y = F.scaled_dot_product_attention(q, k, v, is_causal=True)
+        y = F.scaled_dot_product_attention(q, k, v, attn_mask=mask)
         y = y.transpose(1, 2).contiguous().view(B, T, C)
         y = self.c_proj(y)
         return y
@@ -60,8 +71,8 @@ class Block(nn.Module):
         self.ln_2 = nn.LayerNorm(config.n_embed)
         self.mlp = MLP(config)
     
-    def forward(self, x):
-        x = x + self.attn(self.ln_1(x))
+    def forward(self, x, attn_mask=None):
+        x = x + self.attn(self.ln_1(x), attn_mask=attn_mask)
         x = x + self.mlp(self.ln_2(x))
         return x
 
@@ -83,7 +94,7 @@ class GPT2(nn.Module):
 
         self.apply(self._init_weights)
     
-    def forward(self, idx, targets=None):
+    def forward(self, idx, targets=None, attn_mask=None):
         B, T = idx.size()
         assert T <= self.config.block_size, f"Cannot forward sequence of length {T}, block size is only {self.config.block_size}"
 
@@ -92,12 +103,12 @@ class GPT2(nn.Module):
         tok_emb = self.transformer.wte(idx)
         x = tok_emb + pos_emb
         for block in self.transformer.h:
-            x = block(x)
+            x = block(x, attn_mask=attn_mask)
         x = self.transformer.ln_f(x)
         logits = self.lm_head(x)
         loss = None
         if targets is not None:
-            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1))
+            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-100)
         return logits, loss
     
     def _init_weights(self, module):
@@ -106,7 +117,7 @@ class GPT2(nn.Module):
             if hasattr(module, "NANDGPT_SCALE_INIT"): std *= (2 * self.config.n_layers) ** -0.5
             torch.nn.init.normal_(module.weight, mean=0.0, std=std)
             if module.bias is not None:
-                torch.nn.init.zeros_(module.weight)
+                torch.nn.init.zeros_(module.bias)
         elif isinstance(module, nn.Embedding):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 

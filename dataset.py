@@ -1,4 +1,5 @@
 import torch
+from torch.utils.data import Dataset
 import tiktoken
 import multiprocessing as mp
 import numpy as np
@@ -141,8 +142,8 @@ class ShakespeareLoader:
             text = f.read()
 
         tokenizer = tiktoken.get_encoding("gpt2")
-        tokens = tokenizer.encode(text[:1000])
-        self.tokens = torch.tensor(tokens[:B * T + 1])
+        tokens = tokenizer.encode(text)
+        self.tokens = torch.tensor(tokens)
 
         self.current_position = self.B * self.T * self.process_rank
 
@@ -155,6 +156,49 @@ class ShakespeareLoader:
         if self.current_position + self.B * self.T * self.world_size + 1 > len(self.tokens):
             self.current_position = self.B * self.T * self.process_rank
         return x, y
+
+
+class InstructionDataset(Dataset):
+    def __init__(self, max_length=1024):
+        self.tokenizer = tiktoken.get_encoding("gpt2")
+        self.dataset = load_dataset("databricks/databricks-dolly-15k")["train"]
+        self.max_length = max_length
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, idx):
+        item = self.dataset[idx]
+        instruction, context, response = item["instruction"], item["context"], item["response"]
+        if context:
+            prompt = f"{instruction}\nContext:\n{context}\nResponse:\n"
+        else:
+            prompt = f"{instruction}\nResponse:\n"
+
+        prompt_ids = self.tokenizer.encode(prompt)
+        response_ids = self.tokenizer.encode(response)
+
+        input_ids = prompt_ids + response_ids
+        input_ids = input_ids[:self.max_length]
+
+        labels = [-100] * len(prompt_ids) + response_ids
+        labels = labels[1:]  # shift the labels to make the model predict correct things
+        labels = labels[:self.max_length]
+
+        padding_length = self.max_length - len(input_ids)
+        input_ids += [self.tokenizer.eot_token] * padding_length
+        labels += [-100] * (padding_length + 1)
+        labels = labels[:self.max_length]  # needed to solve some bug
+
+        attention_mask = [1] * (len(prompt_ids) + len(response_ids))
+        attention_mask += [0] * padding_length
+        attention_mask = attention_mask[:self.max_length]
+
+        return {
+            "input_ids": torch.tensor(input_ids),
+            "labels": torch.tensor(labels),
+            "attention_mask": torch.tensor(attention_mask)
+        }
 
 
 if __name__ == "__main__":
