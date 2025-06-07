@@ -33,13 +33,16 @@ During fine-tuning, the model was presented with a wide range of prompts and exp
 
 Before fine-tuning, the model demonstrated poor performance on question-answering tasks. For instance, in response to the prompt:
 
+
 *Explain the game of basketball.*
 *Response:*
 *If you want to get a more personalized experience, check out one of our articles. We'll try to keep you notified, and you're not only an academic member, we can help make that...*
 
+
 This incoherent answer reflects the limitations of a model trained purely on general language modeling without alignment to task-specific objectives.
 
 After fine-tuning, the model produced significantly improved completions (not in the fine-tuning training set):
+
 
 *Explain the game of basketball.*
 *Response:*
@@ -49,9 +52,11 @@ After fine-tuning, the model produced significantly improved completions (not in
 
 *The modern game of basketball is played with ball or a stick. This game is fun for players of all ages and skill levels. To the general public, the game is played like an art. It has many rules and etiquette, so players...*
 
+
 This answer is far more informative, structured, and contextually appropriate, indicating successful adaptation through supervised fine-tuning.
 
 The fine-tuned model was also tested on several examples from the training set. While many completions were syntactically fluent and on-topic, they often suffered from factual inaccuracies, hallucinated content, or overly verbose explanations. For example, in answering:
+
 
 *Which is a species of fish? Tope or Rope*
 *Response:*
@@ -60,9 +65,11 @@ The fine-tuned model was also tested on several examples from the training set. 
 
 *Tope is a species of fish native to Central America. In the wild, Tope is a brownish fish with scales that are easily visible...*
 
+
 This example shows a marked improvement over earlier responses, which often failed to correctly distinguish between plausible and implausible options. Even though the model is very verbose, it correctly chooses the tope as the fish species.
 
 Similarly, on a scientific definition task:
+
 
 *What is a dispersive prism?*
 *Context:*
@@ -75,6 +82,7 @@ Similarly, on a scientific definition task:
 *As a general rule, different colors appear in the dispersive prism in the image, as opposed to when they are scattered into the color and incident to the glasses lenses. On the other hand, many cameras have "blurred" to provide different refractive images as well as changing viewing angles. This is why the ISO or quality of the image was selected.  The quality of the image was also evaluated using a refraction grating system (often described as a "blur", though more properly a "dry" grating system like a "flur").*
 
 *In modern technology, dispersive glasses have become a popular choice due to their...*
+
 
 This demonstrates that the fine-tuned model is capable of providing textbook-style answers when the prompt is unambiguous and the required knowledge is covered by training data.
 
