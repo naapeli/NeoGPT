@@ -34,7 +34,7 @@ During fine-tuning, the model was presented with a wide range of prompts and exp
 Before fine-tuning, the model demonstrated poor performance on question-answering tasks. For instance, in response to the prompt:
 
 
-*Explain the game of basketball.*
+*__Explain the game of basketball.__*
 *Response:*
 *If you want to get a more personalized experience, check out one of our articles. We'll try to keep you notified, and you're not only an academic member, we can help make that...*
 
@@ -44,7 +44,7 @@ This incoherent answer reflects the limitations of a model trained purely on gen
 After fine-tuning, the model produced significantly improved completions (not in the fine-tuning training set):
 
 
-*Explain the game of basketball.*
+*__Explain the game of basketball.__*
 *Response:*
 *Basketball is the most popular game in the world. Its origins are unknown; however, in recent times, teams have started playing, in the thousands, of different types of games and leagues. Some of the most famous basketball players are Shaquille Eilen, Tim McInerny, David Bowie, Joe Briscoe, and Phil Lomas. To the general public, basketball is a fun game because there are many competitions and tournaments that can be played to keep people interested in the game. Basketball, like all sports, involves a lot of decision making and requires a lot of decision making to survive. Basketball players typically compete on a rectangular field with 10 players on a basketball court. Players compete by passing a ball over a wall to the opposing team. There are many different versions of basketball, but some of the most well-known include: The Red Kicks (the most famous version) and the Chicago Bulls (the most numerous version). Many of the most well-known basketball artists, actors, and actresses have been inspired by basketball, so it is not hard to tell what NBAman Billie Holiday is thinking. Basketball is a sport that typically requires players to dribble with a ball, slide up to the middle of a basket from the basket to a basket with a team (the team who plays the game is called the team). This game is all about winning, not losing! Basketball is a very popular sport that has millions of people around town.*
 
@@ -58,7 +58,7 @@ This answer is far more informative, structured, and contextually appropriate, i
 The fine-tuned model was also tested on several examples from the training set. While many completions were syntactically fluent and on-topic, they often suffered from factual inaccuracies, hallucinated content, or overly verbose explanations. For example, in answering:
 
 
-*Which is a species of fish? Tope or Rope*
+*__Which is a species of fish? Tope or Rope__*
 *Response:*
 *Tope is a fish but its true aquarium in the Philippines. Many freshwater and saltwater fish, including macaws, scuba divers, or rays, can be found in the fish as well as saltwater species. Tope live mostly in freshwater, and also in saltwater habitats throughout the aquarium trade network. Species of fish that are often mislabeled as Tope include the Philippine catfish, panda, macaws, or carp. Tope is also sometimes found in tropical forest in northern parts of the Philippines. Tope can live in a variety of habitats and in saltwater habitats may live in saltwater streams and brackish marshes. Tope can live in a variety of different types of waters and tanks, including saltwater tanks. Species of fish that are commonly mislabeled as Tope include the Philippine catfish, panda, or macaw. Tope can live in many different types of saltwater habitats and in saltwater habitats to thrive. Typically Tope fish in the fish trade can live in saltwater aquariums and saltwater food chains for more than a year. However, in some cases and in some locations, Tope can live as far off as 3-6 years. Tope can live for many years and in some places lives up to 50 years or 50-70 years. Tope can live up to three years in some cultures. Tope is common in tropical rainforests of Southeast Asia. It is a slow grower and can even be found on small cacti. They're also frequently found in saltwater habitats not too far away in the trade. Many freshwater species of fish can live in saltwater habitats, as Tope live in saltwater habitats at the edge of tropical rainforest. Tope is often mistakenly called a catfish or small fishes.*
 *Tope, Rope, and Saltwater Fish are all species of fish. They are actually fishes. They are actually the same in their names: Tope, or Rope. The name of a species of fish in the Angacamu fish family is an angacamericana and is often times more frequently used as a generic reference point for the name than as a species of the genus species.*
@@ -71,7 +71,7 @@ This example shows a marked improvement over earlier responses, which often fail
 Similarly, on a scientific definition task:
 
 
-*What is a dispersive prism?*
+*__What is a dispersive prism?__*
 *Context:*
 *In optics, a dispersive prism is an optical prism that is used to disperse light, that is, to separate light into its spectral components (the colors of the rainbow). Different wavelengths (colors) of light will be deflected by the prism at different angles. This is a result of the prism material's index of refraction varying with wavelength (dispersion). Generally, longer wavelengths (red) undergo a smaller deviation than shorter wavelengths (blue). The dispersion of white light into colors by a prism led Sir Isaac Newton to conclude that white light consisted of a mixture of different colors.*
 *Response:*
