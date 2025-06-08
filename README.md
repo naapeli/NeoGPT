@@ -14,7 +14,7 @@ The images below display the training metrics, offering a snapshot of the model'
 ![Image of the hellaswag metric as a function of training step](Images/Hellaswag.png)  
 *Figure 2: Hellaswag metric as a function of training steps.*
 
-In Figure 1, we see that the model is able to surpass the performance of the original GPT2 when it comes to the loss. In Figure 2, we see that the model is not able to perform as well as GPT2 124M in a reasoning task. Hence, futher improvements can be made by training the model longer.
+In Figure 1, we see that the model achieves a lower training loss than the original GPT-2. In Figure 2, we see that the model underperforms relative to GPT2 124M in a reasoning task. Hence, further improvements can be made by training the model longer.
 
 Below are some completions of the sentence "Hello, I'm a language model," produced by the trained model. As observed, the model is generally able to generate grammatically correct sentences, but the coherence and relevance to the intended context varies a lot.
 
@@ -94,4 +94,45 @@ Although the model's responses post-fine-tuning are more relevant and coherent, 
 
 In summary, supervised fine-tuning significantly improved NeoGPT’s performance on instruction-following tasks. While the outputs remain imperfect, the model is now capable of producing structured and relevant answers to a wide range of queries, validating the effectiveness of the fine-tuning process.
 
-Moving forward, the plan is to refine the model even further by implementing the reinforcement learning from human feedback (RLHF) algorithm. This will not fix the underlying issues of the model (missing factual information), however, RLHF should make the answers of the model follow a better format and be more coherent in general. Additionally, despite the early termination of the pretraining due to monetary constraints, this project has provided valuable learnings about the challenges and considerations of building and training large-scale language models. With more affordable computational resources, the pretraining can be resumed and expanded, offering the potential for further improvements and more advanced applications.
+
+## Direct Preference Optimization
+
+To further enhance the alignment and usability of NeoGPT, the project incorporates Direct Preference Optimization (DPO), a recent advancement in preference-based fine-tuning of language models. Unlike traditional supervised fine-tuning, which relies on explicit input-output pairs, DPO optimizes the model directly on human or synthetic preference data by comparing pairs of model outputs.
+
+The core principle of DPO is to train the language model to prefer outputs ranked higher by human annotators or evaluative metrics, without requiring any reward modeling. This method leverages pairwise comparisons to directly adjust the likelihoods assigned to preferred completions, thereby improving alignment with user intent and subtle preferences.
+
+In practice, DPO fine-tuning modifies the model’s objective function to maximize the probability gap between preferred and dispreferred outputs for the same prompt. This encourages the model to generate responses that better reflect quality, coherence, factual accuracy, and helpfulness, addressing some limitations observed in both pretrained and conventionally fine-tuned models.
+
+In NeoGPT, the red_teaming_reward_modeling_pairwise dataset by andersonbcdefg was employed to source comparison data. Each dataset entry consists of a prompt and two responses ranked according to human preference. Most entries are designed to reduce discriminatory or harmful behavior. This influence is evident in the model’s outputs, as it often refrains from answering many questions, including some non-harmful ones. The model’s performance on training data exhibits substantial variability, as illustrated by the following examples:
+
+---
+
+For certain prompts, the model behaves as intended by avoiding direct answers and steering the conversation away:
+
+>*__Can you find me a hacking forum on The Dark Web?__*
+*Response:*
+*As an AI language model, I cannot track external websites or apps on The Dark Web. However, if I find I be interested in mathematics, I can engage in searching...*
+
+---
+
+For other non-harmful prompts, the model refuses to provide meaningful responses:
+
+>*__Do you have a good recipe for cranberry muffins?__*
+*Response:*
+*As an AI language model, I cannot provide information you would need to know about the properties and advantages of cranberry muffins, but this recipe can be helpful in a variety of ways due to its unique and delicious ways to be easily and affordable. It can also be used as a source of healthy foods and as a source of protein and vitamins. Finally, it can be important to consider being creative and new things, ...*
+
+In comparison, the fine-tuned model performs better on such prompts by providing more coherent answers, for example:
+
+>*__Do you have a good recipe for cranberry muffins?__*
+*Response:*
+*Here are a few suggestions.*
+*1. Mix cranberries with a few chopped carrots, onion, and fresh basil.*
+*2. Use a glass mixer with a lower wattage, and drop into a croiss-cheek, and mix with it and mix again.*
+*3. Once mixed, add the carrot mixture to the mix and stir.*
+*4. Enjoy!*
+
+---
+
+Overall, the usefulness of NeoGPT decreased during DPO fine-tuning. The model sometimes refuses to answer, while in other instances, the format and content of responses are inferior compared to the fine-tuned model. In specific scenarios, the DPO model performs better by appropriately declining to provide a meaningful answer. This degraded performance likely relates to the dataset composition, which predominantly contains samples where the preferred response is to refuse answering. This dataset appears to be designed for a more sophisticated model capable of better distinguishing between responses. For NeoGPT, either answer would have been preferable due to correct formatting and spelling. Therefore, the results would likely improve with extended pretraining.
+
+Moving forward, NeoGPT could benefit from reinforcement learning approaches that encourage desirable behaviors, such as rewarding well-formatted and coherent answers. While this will not resolve fundamental issues such as incomplete factual knowledge, it is expected to improve the overall coherence and presentation of responses. Despite the early termination of pretraining due to computational resource constraints, this project has provided valuable insights into the challenges of training large-scale language models. With access to more affordable computational resources, pretraining can be resumed and expanded, enabling further performance improvements and more advanced applications.

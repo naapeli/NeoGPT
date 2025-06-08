@@ -4,7 +4,6 @@ from torch.optim import AdamW
 from torch.nn.utils import clip_grad_norm_
 
 import os
-import tiktoken
 
 from GPT2 import GPT2
 from dataset import InstructionDataset
@@ -23,7 +22,6 @@ model = GPT2(checkpoint["config"])
 model.to(device)
 model.load_state_dict(checkpoint["model"])
 
-tokenizer = tiktoken.get_encoding("gpt2")
 MAX_LENGTH = 1024  # use 150 for debugging and 1024 otherwise
 BATCH_SIZE = 12
 EPOCHS = 3

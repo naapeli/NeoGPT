@@ -200,6 +200,59 @@ class InstructionDataset(Dataset):
             "attention_mask": torch.tensor(attention_mask)
         }
 
+class PreferenceDataset(Dataset):
+    def __init__(self, max_length=1024):
+        self.tokenizer = tiktoken.get_encoding("gpt2")
+        self.dataset = load_dataset("andersonbcdefg/red_teaming_reward_modeling_pairwise")["train"]
+        self.max_length = max_length
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, idx):
+        item = self.dataset[idx]
+        instruction, response_a, response_b, preferred = item["prompt"], item["response_a"], item["response_b"], item["preferred"]
+        positive_response = response_a if preferred == "A" else response_b
+        negative_response = response_a if preferred == "B" else response_b
+        positive_prompt = f"{instruction}\nResponse:\n{positive_response}"
+        negative_prompt = f"{instruction}\nResponse:\n{negative_response}"
+
+        prompt_length = len(self.tokenizer.encode(f"{instruction}\nResponse:\n"))
+        positive_prompt_ids = self.tokenizer.encode(positive_prompt)
+        negative_prompt_ids = self.tokenizer.encode(negative_prompt)
+
+        positive_attention_mask = [1] * len(positive_prompt_ids)
+        positive_attention_mask += [0] * max(self.max_length - len(positive_attention_mask), 0)
+        positive_attention_mask = positive_attention_mask[:self.max_length]
+        negative_attention_mask = [1] * len(negative_prompt_ids)
+        negative_attention_mask += [0] * max(self.max_length - len(negative_attention_mask), 0)
+        negative_attention_mask = negative_attention_mask[:self.max_length]
+
+        positive_response_mask = torch.ones(size=(self.max_length,))
+        positive_response_mask[:prompt_length] = 0  # mask out prompt
+        positive_response_mask[len(positive_prompt_ids):] = 0  # mask out padding
+        positive_response_mask = positive_response_mask[1:]  # take the elements that will be predicted
+        negative_response_mask = torch.ones(size=(self.max_length,))
+        negative_response_mask[:prompt_length] = 0  # mask out prompt
+        negative_response_mask[len(negative_prompt_ids):] = 0  # mask out padding
+        negative_response_mask = negative_response_mask[1:]  # take the elements that will be predicted
+
+        positive_padding_length = max(self.max_length - len(positive_prompt_ids), 0)
+        negative_padding_length = max(self.max_length - len(negative_prompt_ids), 0)
+        positive_prompt_ids += [self.tokenizer.eot_token] * positive_padding_length
+        negative_prompt_ids += [self.tokenizer.eot_token] * negative_padding_length
+        positive_prompt_ids = positive_prompt_ids[:self.max_length]
+        negative_prompt_ids = negative_prompt_ids[:self.max_length]
+
+        return {
+            "positive_prompt_ids": torch.tensor(positive_prompt_ids),
+            "positive_attention_mask": torch.tensor(positive_attention_mask),
+            "negative_prompt_ids": torch.tensor(negative_prompt_ids),
+            "negative_attention_mask": torch.tensor(negative_attention_mask),
+            "positive_response_mask": positive_response_mask,
+            "negative_response_mask": negative_response_mask,
+        }
+
 
 if __name__ == "__main__":
     save_fineweb()
